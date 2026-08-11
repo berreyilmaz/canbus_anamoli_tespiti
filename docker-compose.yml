@@ -1,0 +1,40 @@
+services:
+  ml-api:
+    build: ./api
+    ports:
+      - "8000:8000"
+
+  backend:
+    build: ./CanBusApi
+    ports:
+      - "5257:8080"
+    environment:
+      - MlApi__BaseUrl=http://ml-api:8000
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+    depends_on:
+      - ml-api
+      - postgres
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

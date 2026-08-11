@@ -1,0 +1,6 @@
+@CanBusApi_HostAddress = http://localhost:5257
+
+GET {{CanBusApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
