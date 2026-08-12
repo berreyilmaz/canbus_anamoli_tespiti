@@ -31,6 +31,10 @@ builder.Services.AddCors(options =>
 builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
+
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!);
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddOpenApi();
@@ -102,6 +106,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 var summaries = new[]
 {

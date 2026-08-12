@@ -36,6 +36,10 @@ class CanMesaji(BaseModel):
 def ana_sayfa():
     return {"mesaj": "CAN Bus Anomali Tespit API çalışıyor"}
 
+@app.get("/health")
+def saglik_kontrolu():
+    return {"durum": "sağlıklı", "model_yuklu": model is not None}
+
 @app.post("/predict")
 def tahmin_et(mesaj: CanMesaji):
     try:
