@@ -1,0 +1,48 @@
+name: Testler
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  fastapi-testleri:
+    name: FastAPI Testleri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bağımlılıkları kur
+        working-directory: ./api
+        run: |
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Testleri çalıştır
+        working-directory: ./api
+        run: python -m pytest test_main.py -v
+
+  dotnet-testleri:
+    name: ASP.NET Core Testleri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: .NET kur
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Bağımlılıkları geri yükle
+        run: dotnet restore CanBusApi.Tests/CanBusApi.Tests.csproj
+
+      - name: Testleri çalıştır
+        run: dotnet test CanBusApi.Tests/CanBusApi.Tests.csproj
