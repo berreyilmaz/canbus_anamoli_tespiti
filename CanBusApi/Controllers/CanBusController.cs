@@ -82,4 +82,33 @@ public class CanBusController : ControllerBase
 
         return Ok(kayitlar);
     }
+
+    [HttpGet("report")]
+    [Authorize]
+    public async Task<IActionResult> Report()
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = int.Parse(userIdStr!);
+
+        var sonKayitlar = await _db.PredictionLogs
+            .Where(p => p.UserId == userId)
+            .OrderByDescending(p => p.Zaman)
+            .Take(10)
+            .ToListAsync();
+
+        if (sonKayitlar.Count == 0)
+        {
+            return BadRequest(new { hata = "Rapor oluşturmak için önce en az bir tahmin yapmalısınız" });
+        }
+
+        try
+        {
+            var rapor = await _predictionService.RaporOlusturAsync(sonKayitlar);
+            return Ok(new { rapor });
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, new { hata = "AI rapor servisine ulaşılamadı", detay = ex.Message });
+        }
+    }
 }

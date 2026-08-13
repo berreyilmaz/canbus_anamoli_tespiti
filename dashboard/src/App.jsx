@@ -1,9 +1,9 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { login, register, predict, getHistory, setToken } from "./api";
 import { useState, useEffect } from "react";
 import "./App.css";
 import * as XLSX from "xlsx";
+import { login, register, predict, getHistory, getReport, setToken } from "./api";
 
 const RENK_HARITASI = {
   Normal: "#0ea472",
@@ -38,6 +38,10 @@ function App() {
   const [simulasyonCalisiyor, setSimulasyonCalisiyor] = useState(false);
   const [simulasyonIlerleme, setSimulasyonIlerleme] = useState(0);
 
+  const [raporMetni, setRaporMetni] = useState("");
+  const [raporYukleniyor, setRaporYukleniyor] = useState(false);
+  const [raporHatasi, setRaporHatasi] = useState("");
+
   async function handleLogin(e) {
     e.preventDefault();
     setGirisHatasi("");
@@ -56,7 +60,7 @@ function App() {
       getHistory()
         .then((kayitlar) => {
           const formatli = kayitlar.map((k) => ({
-            zaman: new Date(k.zaman).toLocaleTimeString("tr-TR"),
+            zaman: new Date(k.zaman).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }),
             canId: k.canIdHex,
             tahmin: k.tahmin,
             olasilik: k.olasilik,
@@ -107,7 +111,7 @@ function App() {
       });
 
       const yeniKayit = {
-        zaman: new Date().toLocaleTimeString("tr-TR"),
+        zaman: new Date().toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }),
         canId: canIdHex,
         tahmin: sonuc.tahmin,
         olasilik: sonuc.olasiliklar[sonuc.tahmin],
@@ -240,6 +244,21 @@ function App() {
     }
 
     setSimulasyonCalisiyor(false);
+  }
+
+  async function handleRaporOlustur() {
+    setRaporYukleniyor(true);
+    setRaporHatasi("");
+    setRaporMetni("");
+
+    try {
+      const sonuc = await getReport();
+      setRaporMetni(sonuc.rapor);
+    } catch (err) {
+      setRaporHatasi(err.response?.data?.hata || "Rapor oluşturulurken bir hata oluştu");
+    } finally {
+      setRaporYukleniyor(false);
+    }
   }
 
   if (!girisYapildi) {
@@ -406,6 +425,27 @@ function App() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="rapor-container">
+        <div className="rapor-ust">
+          <h2>AI Güvenlik Raporu</h2>
+          <button
+            onClick={handleRaporOlustur}
+            disabled={raporYukleniyor}
+            className="rapor-butonu"
+          >
+            {raporYukleniyor ? "Oluşturuluyor..." : "Rapor Oluştur"}
+          </button>
+        </div>
+        {raporHatasi && <p className="hata-metni">{raporHatasi}</p>}
+        {raporMetni && (
+          <div className="rapor-metni">
+            {raporMetni.split("\n").map((satir, index) => (
+              <p key={index}>{satir}</p>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -51,3 +51,8 @@ export async function getHistory() {
   const response = await apiClient.get("/CanBus/history");
   return response.data;
 }
+
+export async function getReport() {
+  const response = await apiClient.get("/CanBus/report");
+  return response.data;
+}

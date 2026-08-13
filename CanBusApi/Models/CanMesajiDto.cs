@@ -30,3 +30,29 @@ public class TahminResponse
     public string Tahmin { get; set; } = string.Empty;
     public Dictionary<string, double> Olasiliklar { get; set; } = new();
 }
+
+public class TahminOzetiDto
+{
+    [JsonPropertyName("can_id_hex")]
+    public string CanIdHex { get; set; } = string.Empty;
+
+    [JsonPropertyName("tahmin")]
+    public string Tahmin { get; set; } = string.Empty;
+
+    [JsonPropertyName("olasilik")]
+    public double Olasilik { get; set; }
+
+    [JsonPropertyName("zaman")]
+    public string Zaman { get; set; } = string.Empty;
+}
+
+public class RaporIstegiDto
+{
+    [JsonPropertyName("tahminler")]
+    public List<TahminOzetiDto> Tahminler { get; set; } = new();
+}
+
+public class RaporResponse
+{
+    public string Rapor { get; set; } = string.Empty;
+}

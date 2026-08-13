@@ -38,4 +38,29 @@ public class CanBusPredictionService
 
         return sonuc;
     }
+
+    public async Task<string> RaporOlusturAsync(List<PredictionLog> kayitlar)
+    {
+        var istek = new RaporIstegiDto
+        {
+            Tahminler = kayitlar.Select(k => new TahminOzetiDto
+            {
+                CanIdHex = k.CanIdHex,
+                Tahmin = k.Tahmin,
+                Olasilik = k.Olasilik,
+                Zaman = k.Zaman.ToString("HH:mm:ss")
+            }).ToList()
+        };
+
+        var response = await _httpClient.PostAsJsonAsync("/report", istek);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var hataDetayi = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Rapor servisi hata döndü: {hataDetayi}");
+        }
+
+        var sonuc = await response.Content.ReadFromJsonAsync<RaporResponse>();
+        return sonuc?.Rapor ?? "Rapor oluşturulamadı";
+    }
 }
