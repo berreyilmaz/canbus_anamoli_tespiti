@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { login, register, predict, getHistory, setToken } from "./api";
 import { useState, useEffect } from "react";
 import "./App.css";
+import * as XLSX from "xlsx";
 
 const RENK_HARITASI = {
   Normal: "#0ea472",
@@ -30,6 +31,13 @@ function App() {
   const [ekranModu, setEkranModu] = useState("giris"); 
   const [kayitBasarili, setKayitBasarili] = useState("");
 
+  const [simulasyonMesajlari, setSimulasyonMesajlari] = useState([]);
+  const [yuklenenDosyaAdi, setYuklenenDosyaAdi] = useState("");
+  const [dosyaHatasi, setDosyaHatasi] = useState("");
+
+  const [simulasyonCalisiyor, setSimulasyonCalisiyor] = useState(false);
+  const [simulasyonIlerleme, setSimulasyonIlerleme] = useState(0);
+
   async function handleLogin(e) {
     e.preventDefault();
     setGirisHatasi("");
@@ -42,23 +50,29 @@ function App() {
     }
   }
   useEffect(() => {
-  if (girisYapildi) {
-    getHistory()
-      .then((kayitlar) => {
-        const formatli = kayitlar.map((k) => ({
-          zaman: new Date(k.zaman).toLocaleTimeString("tr-TR"),
-          canId: k.canIdHex,
-          tahmin: k.tahmin,
-          olasilik: k.olasilik,
-          saldiriMi: k.tahmin !== "Normal",
-        }));
-        setTahminGecmisi(formatli);
-      })
-      .catch(() => {
-        setTahminGecmisi([]);
-      });
-  }
-}, [girisYapildi]);
+    if (!girisYapildi) return;
+
+    function gecmisiCek() {
+      getHistory()
+        .then((kayitlar) => {
+          const formatli = kayitlar.map((k) => ({
+            zaman: new Date(k.zaman).toLocaleTimeString("tr-TR"),
+            canId: k.canIdHex,
+            tahmin: k.tahmin,
+            olasilik: k.olasilik,
+            saldiriMi: k.tahmin !== "Normal",
+          }));
+          setTahminGecmisi(formatli);
+        })
+        .catch(() => {});
+    }
+
+    gecmisiCek();
+
+    const interval = setInterval(gecmisiCek, 3000);
+
+    return () => clearInterval(interval);
+  }, [girisYapildi]);
 
   async function handleRegister(e) {
     e.preventDefault();
@@ -114,6 +128,118 @@ function App() {
     setTahminGecmisi([]);
     setKullaniciAdi("");
     setSifre("");
+  }
+
+  function satirlariNormallestir(satirlar) {
+    const gerekliSutunlar = ["canIdHex", "idFrekans1sn", "maxDataSapma"];
+    if (satirlar.length === 0) return [];
+
+    const mevcutSutunlar = Object.keys(satirlar[0]);
+    const eksikSutun = gerekliSutunlar.find((s) => !mevcutSutunlar.includes(s));
+    if (eksikSutun) {
+      throw new Error(`Dosyada '${eksikSutun}' sütunu eksik`);
+    }
+
+    return satirlar.map((satir) => ({
+      canIdHex: String(satir.canIdHex).trim(),
+      idZamanFarki: satir.idZamanFarki === undefined || satir.idZamanFarki === "" ? null : Number(satir.idZamanFarki),
+      idFrekans1sn: Number(satir.idFrekans1sn),
+      maxDataSapma: Number(satir.maxDataSapma),
+    }));
+  }
+
+  function csvMetniniAyristir(metin) {
+    const satirlar = metin.trim().split("\n");
+    const basliklar = satirlar[0].split(",").map((b) => b.trim());
+
+    const gerekliSutunlar = ["canIdHex", "idFrekans1sn", "maxDataSapma"];
+    const eksikSutun = gerekliSutunlar.find((s) => !basliklar.includes(s));
+    if (eksikSutun) {
+      throw new Error(`CSV dosyasında '${eksikSutun}' sütunu eksik`);
+    }
+
+    return satirlar.slice(1).filter((s) => s.trim() !== "").map((satir) => {
+      const degerler = satir.split(",");
+      const kayit = {};
+      basliklar.forEach((baslik, index) => {
+        const deger = degerler[index]?.trim() ?? "";
+        if (baslik === "canIdHex") {
+          kayit[baslik] = deger;
+        } else {
+          kayit[baslik] = deger === "" ? null : Number(deger);
+        }
+      });
+      return kayit;
+    });
+  }
+
+    function handleDosyaSecildi(e) {
+    const dosya = e.target.files[0];
+    if (!dosya) return;
+
+    setDosyaHatasi("");
+    const dosyaAdi = dosya.name.toLowerCase();
+    const excelMi = dosyaAdi.endsWith(".xlsx") || dosyaAdi.endsWith(".xls");
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        let mesajlar;
+
+        if (excelMi) {
+          const workbook = XLSX.read(event.target.result, { type: "binary" });
+          const ilkSayfa = workbook.Sheets[workbook.SheetNames[0]];
+          const satirlar = XLSX.utils.sheet_to_json(ilkSayfa);
+          mesajlar = satirlariNormallestir(satirlar);
+        } else {
+          mesajlar = csvMetniniAyristir(event.target.result);
+        }
+
+        if (mesajlar.length === 0) {
+          throw new Error("Dosyada geçerli veri satırı bulunamadı");
+        }
+        setSimulasyonMesajlari(mesajlar);
+        setYuklenenDosyaAdi(dosya.name);
+      } catch (err) {
+        setDosyaHatasi(err.message);
+        setSimulasyonMesajlari([]);
+        setYuklenenDosyaAdi("");
+      }
+    };
+
+    reader.onerror = () => {
+      setDosyaHatasi("Dosya okunamadı");
+    };
+
+    if (excelMi) {
+      reader.readAsBinaryString(dosya);
+    } else {
+      reader.readAsText(dosya);
+    }
+  }
+
+  async function handleSimulasyonBaslat() {
+    setSimulasyonCalisiyor(true);
+    setSimulasyonIlerleme(0);
+
+    for (let i = 0; i < simulasyonMesajlari.length; i++) {
+      try {
+        await predict({
+          canIdHex: simulasyonMesajlari[i].canIdHex,
+          idZamanFarki: simulasyonMesajlari[i].idZamanFarki ?? null,
+          idFrekans1sn: simulasyonMesajlari[i].idFrekans1sn,
+          maxDataSapma: simulasyonMesajlari[i].maxDataSapma,
+        });
+      } catch (err) {
+        // devam et
+      }
+
+      setSimulasyonIlerleme(i + 1);
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+    }
+
+    setSimulasyonCalisiyor(false);
   }
 
   if (!girisYapildi) {
@@ -196,6 +322,36 @@ function App() {
         </button>
         {hataMesaji && <p className="hata-metni">{hataMesaji}</p>}
       </form>
+
+      <div className="simulasyon-container">
+        <div className="simulasyon-ust">
+          <div>
+            <h2>Trafik Simülasyonu</h2>
+            <p className="simulasyon-aciklama">
+              CAN mesajı verisi içeren bir CSV veya Excel dosyası yükleyin (canIdHex, idZamanFarki, idFrekans1sn, maxDataSapma sütunları) ve otomatik olarak analiz edin.
+            </p>
+          </div>
+          <div className="dosya-yukleme">
+            <label className="dosya-butonu">
+              Dosya Seç
+              <input type="file" accept=".csv,.xlsx,.xls" onChange={handleDosyaSecildi} hidden />
+            </label>
+            {yuklenenDosyaAdi && (
+              <span className="dosya-adi">{yuklenenDosyaAdi} ({simulasyonMesajlari.length} kayıt)</span>
+            )}
+          </div>
+        </div>
+        {dosyaHatasi && <p className="hata-metni">{dosyaHatasi}</p>}
+        <button
+          onClick={handleSimulasyonBaslat}
+          disabled={simulasyonCalisiyor || simulasyonMesajlari.length === 0}
+          className="simulasyon-butonu"
+        >
+          {simulasyonCalisiyor
+            ? `Çalışıyor... (${simulasyonIlerleme}/${simulasyonMesajlari.length})`
+            : "Simülasyonu Başlat"}
+        </button>
+      </div>
 
       <div className="grafik-container">
         <h2>Olasılık Grafiği (Son 20 İstek)</h2>
